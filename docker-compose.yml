@@ -1,0 +1,39 @@
+services:
+  mpc_ros:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mpc-ros2-humble:latest
+    container_name: mpc_ros2_humble
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}
+      DISPLAY: ${DISPLAY:-}
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - ./mpc_controller:/ros2_ws/src/mpc_controller:rw
+      - ./pretil-zoe-ze50-can-msgs:/ros2_ws/src/pretil-zoe-ze50-can-msgs:rw
+      - ros2_ws_build:/ros2_ws/build
+      - ros2_ws_install:/ros2_ws/install
+      - ros2_ws_log:/ros2_ws/log
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./data:/ros2_data
+    working_dir: /ros2_ws
+    command: >
+      bash -lc "
+      source /opt/ros/humble/setup.bash &&
+      colcon build --symlink-install --packages-up-to can_zoe_msgs &&
+      source install/setup.bash &&
+      colcon build --symlink-install --packages-select mpc_package &&
+      source install/setup.bash &&
+      exec bash
+      "
+
+volumes:
+  ros2_ws_build:
+  ros2_ws_install:
+  ros2_ws_log:
