@@ -1,0 +1,15 @@
+# Condition activation flags
+std_msgs/Header header      # header
+uint8 vehicle             # Activation de la robotisation en fonction des conditions vehicule [0==valide , 1==non-valide]
+uint8 door_fl             # Activation de la robotisation en fonction de la fermeture Porte AVG [0==valide , 1==non-valide]
+uint8 door_fr             # Activation de la robotisation en fonction de la fermeture Porte AVD [0==valide , 1==non-valide]
+uint8 door_rl             # Activation de la robotisation en fonction de la fermeture Porte ARG [0==valide , 1==non-valide]
+uint8 door_rr             # Activation de la robotisation en fonction de la fermeture Porte ARD [0==valide , 1==non-valide]
+uint8 rndb                # Activation de la robotisation en fonction de la position RNDB [0==valide , 1==non-valide]
+uint8 handbrake           # Activation de la robotisation en fonction de la position du frein a main [0==valide , 1==non-valide]
+uint8 emergency_stop      # Activation de la robotisation en fonction de l arret urgence [0==valide , 1==non-valide]
+uint8 trunk               # Activation de la robotisation en fonction de la fermeture du hayon [0==valide , 1==non-valide]
+uint8 belt_fl             # Activation de la robotisation en fonction de la securite du conducteur - ceinture [0==valide , 1==non-valide]
+uint8 belt_fr             # Activation de la robotisation en fonction de la securite du passager - ceinture [0==valide , 1==non-valide]
+uint8 can_intersys        # Activation de la robotisation en fonction de la validite du CAN Veh [0==valide , 1==non-valide]
+uint8 emergency_stop_uca  # Activation de la robotisation en fonction de l arret urgence UCA [0=="Pas Arret Urgence" , 1=="Arret Urgence deporté enclenche" , 2 =="Arret Urgence principal enclenche" , 3=="Arret Urgence principal et deporté enclenches" , 4=="Arret Urgence court circuit masse" , 5=="Arret Urgence debranche"]

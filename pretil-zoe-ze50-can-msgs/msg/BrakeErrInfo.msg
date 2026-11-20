@@ -1,0 +1,15 @@
+# Brake control flag errors (311)
+std_msgs/Header header                     # header
+uint8 erreur_capteur_frein_origine         # erreur : desactivation suite erreur sur le capteur frein 1 d origine [0=="no error" , 1=="error"]
+uint8 erreur_capteur_frein_incoh_ped1_2    # erreur : desactivation suite erreur de coherence entre capteur ped1/ped2 d origine [0=="no error" , 1=="error"]
+uint8 erreur_perte_can_intersystem_frei    # erreur : desactivation suite perte du CAN Intersystem [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_reprise_manu      # erreur : desactivation suite prise en main cette fonction robotisé [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_reprise_externe   # erreur : desactivation suite prise en main d'une fonction externe robotisé [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_pb_can_rob_timeou # erreur : desactivation suite erreur timeout CAN [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_pb_can_rob_chk    # erreur : desactivation suite erreur de calcul du checksum [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_pb_can_rot_cpt    # erreur : desactivation suite consigne hors limite autorisé [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_pb_capteur_ori    # erreur : desactivation suite erreur sur le capteur d origine [0=="no error" , 1=="error"]
+uint8 cause_desact_frein_reprise_manu_coop # erreur : desactivation suite prise en main cette fonction Cooperatif [0=="no error" , 1=="error"]
+uint8 frein_dmd_pilotage_led               # Demande de pilotage de la LED organe [0=="no robotization" , 1=="robotization on" , 2=="robotization not use"]
+uint8 frein_dmd_pilotage_buzzer            # Demande de pilotage du buzzer [0=="no buzzer" , 1=="2 short bip" , 2=="1 long bip" , 3=="5 short bip"]
+uint8 frein_dmd_pilotage_led_dft           # Demande de pilotage de la LED defaut Demande de pilotage de la LED defaut [0=="no led" , 1=="led on" , 2=="quick blink" , 3=="slow blink"]
