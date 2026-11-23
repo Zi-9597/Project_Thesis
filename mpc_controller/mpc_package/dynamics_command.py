@@ -72,30 +72,23 @@ class MPC_Vehicle(Node):
         self.psi = 0.0
         self.slip = 0.0
 
-
         self.ax = 0.0
         self.steer_fb = 0.0
-
 
         self.meas = False
         self.last_meas_ns = 0
 
-
-
-        self.vx_ref_const = 5.0
+        self.vx_ref_const = 8.0
         self.yaw_rate = 0.0
-
 
         self.ref = np.zeros((self.nx , 1 , self.Hp+1))
 
         self.A_vec = []
         self.B_vec = []
 
-
         self.u_last = np.array([0.0 , 0.0] , dtype=np.float64)
         self.u_minus = self.u_last
         self.XX = np.zeros((self.nx , 1 , self.Hp))
-
 
         self.K = None
 
@@ -108,28 +101,22 @@ class MPC_Vehicle(Node):
         self.mark_meas_ok()
 
     def cb_smotion(self , msg : Smotion):
-
         self.vx = msg.vel_x
         self.vy = msg.vel_y
         self.slip = msg.angle
-
         self.mark_meas_ok()
 
 
     def cb_imu(self , msg : CORRIMU):
-        
         self.psi = msg.yaw_rate
         self.mark_meas_ok()
 
     def mark_meas_ok(self):
-
         self.meas = True
         self.last_meas_ns = self.get_clock().now().nanoseconds
 
     def main_loop(self):
-
         self.tick += 1
-
 
         if (self.tick % self.mpc_divider == 0): 
             self.mpc_solve_once()
@@ -156,7 +143,7 @@ class MPC_Vehicle(Node):
         self.B_vec.clear()
 
 
-        vx_meas = self.vx if self.vx == 0 else 0.5
+        vx_meas = max(float(self.vx), 1.0) #self.vx if self.vx != 0 else 2.0
         vy_meas = self.vy
         delta = float(self.u_minus[0])
 
@@ -203,17 +190,20 @@ class MPC_Vehicle(Node):
             status = info.get('status', 'unknown')
 
             # Feasibility monitoring
-            self.get_logger().info(f"MPC status={status} solve={solve_ms:.2f}ms  x=[{self.vx:.2f},{self.vy:.2f},{self.yaw_rate:.2f}]")
+            self.get_logger().info(f"MPC status={status} solve={solve_ms:.2f}ms v={self.vx:.2f} u_ac={uMPC[1]:.2f}")
 
-            if(info['status'] != 'solved'):
-
+            if(info['status'] == 'solved'):
                 self.u_last[:] = np.array([float(uMPC[0]) , float(uMPC[1])] , dtype=np.float64)
                 self.u_minus[:] = self.u_last
+            else:
+                self.u_last[:] = np.array([0.0, 0.0])
+                self.k = None
 
         except Exception as e:
             traceback.print_exc()
             self.get_logger().warn(f"MPC Exception : {e}")
             self.u_last[:] = np.array([0.0 , 0.0])
+            self.K = None
 
     def publish_cmd(self , u : np.ndarray): 
 
@@ -221,15 +211,12 @@ class MPC_Vehicle(Node):
         ax    = float(np.clip(u[1], self.u_min[1], self.u_max[1]))
 
         msg_s = CmdSteering()
-
         msg_s.angle = delta
-
         self.pubsteering.publish(msg_s)
 
         msg_a = CmdAcceleration()
-
         msg_a.accel = ax
-
+        msg_a.can_publish = True
         self.ax_pub.publish(msg_a)
 
 
@@ -247,42 +234,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-        
-
-
-
-
-
-
-
-
-
-
-
-        
-
-
-
-
-    
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
