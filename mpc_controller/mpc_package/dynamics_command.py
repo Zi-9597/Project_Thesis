@@ -18,11 +18,14 @@ from mpc_package.utils_system import get_A_B_matrices
 import os 
 import math
 import numpy as np
-
+from mpc_package.sets_library import zonotope 
 
 import time
 
+eps = 1e-6
 
+R_c = np.zeros((3, 1))
+R_G = np.diag([eps, eps, eps])
 
 class MPC_Vehicle(Node):
 
@@ -36,6 +39,9 @@ class MPC_Vehicle(Node):
         self.sub_smotion = self.create_subscription(Smotion , "/can/smotion" , self.cb_smotion , 10) 
         self.sub_steer = self.create_subscription(SteeringInfo , "/can/steering_info" , self.cb_steering , 10) 
         self.sub_imu  = self.create_subscription(CORRIMU , "/novatel/oem7/corrimu" , self.cb_imu , 10) 
+        self.z = zonotope.Zonotope(R_c, R_G)
+        
+        print(self.z)
 
 
         #Publish
