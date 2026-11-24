@@ -90,13 +90,32 @@ class MPC_Controller_LPV:
 
         self.Du_ineq = True
     
-    def setup_MPC(self, A_vec, B_vec):
+    def setup_MPC(self, A_vec, B_vec, *, tube_int=False):
         """
         Prepares the QP matrices for the MPC problem.
         """
-        self._compute_QP_Matrices(A_vec, B_vec, self.x_ref, self.x0, self.u_ref, self.u_minus)
-        # Uncomment below to setup OSQP problem
-        self.prob.setup(P=self.P, q=self.q, A=self.A, l=self.l, u=self.u,
+        #CHANGE: Use stage-wise tube bounds at setup as well as on updates.
+        self._compute_QP_Matrices(A_vec, B_vec, self.x_ref, self.x0, self.u_ref,
+                                  self.u_minus, tube_int=tube_int)
+
+        #CHANGE: Reserve every LPV dynamics slot, including coefficients that start at zero.
+        nx, nu = self.nx, self.nu
+        coo = self.A.tocoo()
+        rows, cols = [coo.row], [coo.col]
+        for i in range(self.Np):
+            state_rows = np.arange((i + 1) * nx, (i + 2) * nx)
+            state_cols = np.arange(i * nx, (i + 1) * nx)
+            input_start = (self.Np + 1) * nx + min(i, self.Nc - 1) * nu
+            dynamics_cols = np.concatenate((state_cols, np.arange(input_start, input_start + nu)))
+            rows.append(np.repeat(state_rows, dynamics_cols.size))
+            cols.append(np.tile(dynamics_cols, nx))
+        rows, cols = np.concatenate(rows), np.concatenate(cols)
+        pattern = sparse.csc_matrix((np.ones(rows.size), (rows, cols)), shape=self.A.shape)
+        self._ax_rows = pattern.indices.copy()
+        self._ax_cols = np.repeat(np.arange(pattern.shape[1]), np.diff(pattern.indptr))
+        pattern.data[:] = np.asarray(self.A[self._ax_rows, self._ax_cols]).ravel()
+
+        self.prob.setup(P=self.P, q=self.q, A=pattern, l=self.l, u=self.u,
                         warm_start=True, verbose=False,
                         eps_abs=self.eps_abs, eps_rel=self.eps_rel)
         
@@ -114,24 +133,22 @@ class MPC_Controller_LPV:
         self.x0 = x0
         self.u_ref = u_ref if u_ref is not None else self.u_ref
         self.u_minus = u_minus
-        if tube_int:
-   
-            self.x_min = x_min if x_min is not None else self.x_min 
-            self.x_max = x_max if x_max is not None else self.x_max 
-            self.u_min = u_min if u_min is not None else self.u_min 
-            self.u_max = u_max if u_max is not None else self.u_max
+        #CHANGE: Use the provided stage bounds for this update without overwriting defaults.
+        x_min = x_min if tube_int and x_min is not None else self.x_min
+        x_max = x_max if tube_int and x_max is not None else self.x_max
+        u_min = u_min if tube_int and u_min is not None else self.u_min
+        u_max = u_max if tube_int and u_max is not None else self.u_max
 
         # Recompute the QP matrices with the updated parameters
-        self._update_QP_Matrices(A_vec, B_vec, self.x_ref, self.x0, self.u_ref, self.u_minus , self.x_min , self.x_max,
-                                 self.u_min , self.u_max , tube_int , self.v_affine)
+        self._update_QP_Matrices(A_vec, B_vec, self.x_ref, self.x0, self.u_ref, self.u_minus,
+                                  x_min, x_max, u_min, u_max, tube_int, self.v_affine)
         
-        # Update the OSQP problem with the new matrices
-       
+        #CHANGE: Update OSQP's numeric dynamics entries in setup CSC order.
+        # P is constant across MPC steps; stage bounds are carried by l/u.
+        Ax = np.asarray(self.A[self._ax_rows, self._ax_cols]).ravel()
+        self.prob.update(Ax=Ax, q=self.q, l=self.l, u=self.u)
 
-        
-        self.prob.update(P=self.P, q=self.q, A=self.A, l=self.l, u=self.u)
-
-    def _compute_QP_Matrices(self, A_vec, B_vec, x_ref, x_0, u_ref, u_minus):
+    def _compute_QP_Matrices(self, A_vec, B_vec, x_ref, x_0, u_ref, u_minus, *, tube_int=False):
         """
         Constructs the QP cost matrices (P, q) for the MPC problem.
         """
@@ -269,15 +286,16 @@ class MPC_Controller_LPV:
         if self.SOFT_RELAX:
             # If soft relaxation is enabled, add slack variables to the state bounds
             Aineq_x = sparse.hstack([Aineq_x , sparse.eye(nx * (Np + 1))])
-        lineq_x = np.kron(np.ones(Np + 1), self.x_min)
-        uineq_x = np.kron(np.ones(Np + 1), self.x_max)
+        #CHANGE: The tube supplies flattened bounds in stage-major order.
+        lineq_x = self.x_min if tube_int else np.kron(np.ones(Np + 1), self.x_min)
+        uineq_x = self.x_max if tube_int else np.kron(np.ones(Np + 1), self.x_max)
         # Input bounds inequality constraints
         Aineq_u = sparse.hstack([sparse.csc_matrix((Nc * nu, (Np + 1) * nx)), sparse.eye(Nc * nu)])
         if self.SOFT_RELAX:
             # If soft relaxation is enabled, add slack variables to the input bounds
             Aineq_u = sparse.hstack([Aineq_u, sparse.csc_matrix((Aineq_u.shape[0], nx * (Np + 1)))])
-        lineq_u = np.kron(np.ones(Nc), self.u_min)
-        uineq_u = np.kron(np.ones(Nc), self.u_max)
+        lineq_u = self.u_min if tube_int else np.kron(np.ones(Nc), self.u_min)
+        uineq_u = self.u_max if tube_int else np.kron(np.ones(Nc), self.u_max)
 
         # Input rate bounds inequality constraints
         # If input rate constraints are enabled, construct the corresponding matrices
@@ -428,11 +446,11 @@ class MPC_Controller_LPV:
 
         if not(tube_int): 
 
-            lineq_x = np.kron(np.ones(Np + 1), self.x_min)
-            uineq_x = np.kron(np.ones(Np + 1), self.x_max)
+            lineq_x = np.kron(np.ones(Np + 1), x_min)
+            uineq_x = np.kron(np.ones(Np + 1), x_max)
         else:
-            lineq_x = self.x_min
-            uineq_x = self.x_max
+            lineq_x = x_min
+            uineq_x = x_max
         # Input bounds inequality constraints
         Aineq_u = sparse.hstack([sparse.csc_matrix((Nc * nu, (Np + 1) * nx)), sparse.eye(Nc * nu)])
         if self.SOFT_RELAX:
@@ -440,11 +458,11 @@ class MPC_Controller_LPV:
             Aineq_u = sparse.hstack([Aineq_u, sparse.csc_matrix((Aineq_u.shape[0], nx * (Np + 1)))])
 
         if not(tube_int):
-            lineq_u = np.kron(np.ones(Nc), self.u_min)
-            uineq_u = np.kron(np.ones(Nc), self.u_max)
+            lineq_u = np.kron(np.ones(Nc), u_min)
+            uineq_u = np.kron(np.ones(Nc), u_max)
         else:
-            lineq_u = self.u_min
-            uineq_u = self.u_max
+            lineq_u = u_min
+            uineq_u = u_max
 
 
         # Input rate bounds inequality constraints
